@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Content Radar</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080b0f;
+      --bg2: #0d1117;
+      --surface: #111820;
+      --border: #1e2d3d;
+      --accent: #00e5ff;
+      --accent2: #ff3d71;
+      --accent3: #ffe600;
+      --text: #e8edf2;
+      --muted: #5a7080;
+      --font-display: 'Syne', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-display);
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* Custom cursor */
+    .cursor {
+      width: 12px; height: 12px;
+      background: var(--accent);
+      border-radius: 50%;
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      transition: transform 0.15s ease, background 0.2s;
+      mix-blend-mode: difference;
+    }
+    .cursor-ring {
+      width: 36px; height: 36px;
+      border: 1px solid var(--accent);
+      border-radius: 50%;
+      position: fixed;
+      pointer-events: none;
+      z-index: 9998;
+      transition: transform 0.35s ease, width 0.2s, height 0.2s;
+      opacity: 0.5;
+    }
+
+    /* Noise overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1000;
+      opacity: 0.4;
+    }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 6vw;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.3;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+    }
+
+    .hero-glow {
+      position: absolute;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(0,229,255,0.07) 0%, transparent 70%);
+      top: -100px; right: -100px;
+      pointer-events: none;
+      animation: pulse 6s ease-in-out infinite;
+    }
+
+    .hero-glow2 {
+      position: absolute;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(255,61,113,0.05) 0%, transparent 70%);
+      bottom: 0; left: 10%;
+      pointer-events: none;
+      animation: pulse 8s ease-in-out infinite reverse;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.7; }
+    }
+
+    .hero-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.2s forwards;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .hero-tag::before {
+      content: '';
+      width: 32px; height: 1px;
+      background: var(--accent);
+    }
+
+    .hero-title {
+      font-size: clamp(3rem, 9vw, 8rem);
+      font-weight: 800;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      margin-bottom: 2rem;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.4s forwards;
+    }
+
+    .hero-title .line2 {
+      color: transparent;
+      -webkit-text-stroke: 1px var(--accent);
+    }
+
+    .hero-title .accent-word {
+      color: var(--accent);
+      position: relative;
+    }
+
+    .hero-sub {
+      font-family: var(--font-mono);
+      font-size: clamp(0.85rem, 1.5vw, 1rem);
+      color: var(--muted);
+      max-width: 560px;
+      line-height: 1.8;
+      margin-bottom: 3rem;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.6s forwards;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.8s forwards;
+    }
+
+    .btn {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.9rem 2rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    }
+    .btn-primary:hover {
+      background: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0,229,255,0.4);
+    }
+
+    .btn-secondary {
+      border: 1px solid var(--border);
+      color: var(--text);
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    }
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    /* Scroll indicator */
+    .scroll-hint {
+      position: absolute;
+      bottom: 2rem;
+      left: 6vw;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      opacity: 0;
+      animation: fadeUp 1s 1.2s forwards;
+    }
+    .scroll-line {
+      width: 1px; height: 40px;
+      background: linear-gradient(to bottom, var(--muted), transparent);
+      animation: scrollAnim 2s ease-in-out infinite;
+    }
+    @keyframes scrollAnim {
+      0%, 100% { transform: scaleY(1); opacity: 1; }
+      50% { transform: scaleY(0.5); opacity: 0.3; }
+    }
+
+    /* TICKER */
+    .ticker-wrap {
+      overflow: hidden;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 0;
+    }
+    .ticker {
+      display: flex;
+      gap: 3rem;
+      white-space: nowrap;
+      animation: ticker 30s linear infinite;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .ticker span { color: var(--accent); margin-right: 0.5rem; }
+    @keyframes ticker {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* SECTIONS */
+    section {
+      padding: 8rem 6vw;
+      position: relative;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .section-label::before {
+      content: '';
+      width: 24px; height: 1px;
+      background: var(--accent);
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 5vw, 4rem);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .section-sub {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 4rem;
+      max-width: 500px;
+      line-height: 1.8;
+    }
+
+    /* TRENDS GRID */
+    .trends-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5px;
+      background: var(--border);
+    }
+
+    .trend-card {
+      background: var(--bg2);
+      padding: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.3s;
+    }
+    .trend-card:hover {
+      background: var(--surface);
+    }
+    .trend-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 0;
+      background: var(--accent);
+      transition: height 0.4s ease;
+    }
+    .trend-card:hover::after { height: 100%; }
+
+    .trend-status {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 0.3rem 0.75rem;
+      border-radius: 2px;
+      display: inline-block;
+      margin-bottom: 1.25rem;
+    }
+    .status-now { background: rgba(0,229,255,0.1); color: var(--accent); }
+    .status-coming { background: rgba(255,230,0,0.1); color: var(--accent3); }
+    .status-early { background: rgba(255,61,113,0.1); color: var(--accent2); }
+    .status-breaking { background: rgba(0,229,255,0.2); color: var(--accent); border: 1px solid var(--accent); animation: blink 1.5s infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    .trend-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      line-height: 1.3;
+    }
+
+    .trend-desc {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.8;
+      margin-bottom: 1.5rem;
+    }
+
+    .trend-hooks {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .hook-item {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.03);
+      border-left: 2px solid var(--border);
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+    .trend-card:hover .hook-item {
+      border-color: var(--accent);
+    }
+
+    /* TOOLS TABLE */
+    .tools-section { background: var(--bg2); }
+
+    .tools-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+    .tools-table th {
+      text-align: left;
+      padding: 1rem 1.5rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    .tools-table td {
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid rgba(30,45,61,0.5);
+      vertical-align: middle;
+    }
+    .tools-table tr:hover td { background: rgba(0,229,255,0.03); }
+
+    .tool-name {
+      font-weight: 600;
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+    }
+    .tool-cat {
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .stars { color: var(--accent3); letter-spacing: 2px; }
+
+    /* PHILOSOPHY */
+    .philosophy {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .big-quote {
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin: 2rem 0;
+    }
+    .big-quote em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    /* VIDEO IDEAS */
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .video-card {
+      border: 1px solid var(--border);
+      padding: 1.75rem;
+      position: relative;
+      transition: border-color 0.3s, transform 0.3s;
+      background: var(--bg);
+    }
+    .video-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+    .video-num {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .video-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1.4;
+      margin-bottom: 0.5rem;
+    }
+    .video-hook {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      line-height: 1.6;
+      font-style: italic;
+    }
+    .video-fire {
+      position: absolute;
+      top: 1rem; right: 1rem;
+      font-size: 0.8rem;
+    }
+
+    /* FOOTER / CTA */
+    .final-cta {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 8rem 6vw;
+    }
+    .final-cta .big {
+      font-size: clamp(2.5rem, 7vw, 6rem);
+      font-weight: 800;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      margin-bottom: 2rem;
+    }
+    .final-cta .big span { color: var(--accent); }
+    .contact-info {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 2rem;
+      line-height: 2;
+    }
+    .contact-info a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    /* Animations */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--border), transparent);
+      margin: 0 6vw;
+    }
+
+    @media (max-width: 640px) {
+      .hero { padding: 6rem 1.5rem 4rem; }
+      section { padding: 4rem 1.5rem; }
+      .tools-table th:nth-child(3),
+      .tools-table td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-glow2"></div>
+
+  <div class="hero-tag">AI Content Radar &nbsp;·&nbsp; März 2026</div>
+
+  <h1 class="hero-title">
+    KI verstehen.<br>
+    <span class="line2">Content</span><br>
+    <span class="accent-word">der zündet.</span>
+  </h1>
+
+  <p class="hero-sub">
+    Ich bin nicht der Typ, der über KI-Tools liest.<br>
+    Ich bin der Typ, der sie installiert, testet und daraus<br>
+    Content macht, der Millionen erreicht.
+  </p>
+
+  <div class="hero-cta">
+    <a href="https://github.com/JessiAI/ai-content-radar" target="_blank" class="btn btn-primary">Repo ansehen</a>
+    <a href="#themen" class="btn btn-secondary">Aktuelle Themen ↓</a>
+  </div>
+
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+    scroll
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <div><span>⚡</span>Apple M5 released – Local AI für alle</div>
+    <div><span>🔥</span>Gemini 3.1 Pro – 13/16 Benchmarks gewonnen</div>
+    <div><span>🤖</span>DeepSeek V4 – 1 Billion Parameter incoming</div>
+    <div><span>🧠</span>KI-Agenten: 40% der Projekte scheitern laut Gartner</div>
+    <div><span>🌍</span>World Models – Der nächste Paradigmenwechsel</div>
+    <div><span>📡</span>MCP – Der USB-C Standard für KI-Agenten</div>
+    <div><span>⚡</span>Apple M5 released – Local AI für alle</div>
+    <div><span>🔥</span>Gemini 3.1 Pro – 13/16 Benchmarks gewonnen</div>
+    <div><span>🤖</span>DeepSeek V4 – 1 Billion Parameter incoming</div>
+    <div><span>🧠</span>KI-Agenten: 40% der Projekte scheitern laut Gartner</div>
+    <div><span>🌍</span>World Models – Der nächste Paradigmenwechsel</div>
+    <div><span>📡</span>MCP – Der USB-C Standard für KI-Agenten</div>
+  </div>
+</div>
+
+<!-- TRENDS -->
+<section id="themen">
+  <div class="section-label">Aktuelle Themen</div>
+  <h2 class="section-title reveal">Was die KI-Welt<br>gerade bewegt.</h2>
+  <p class="section-sub reveal">Jedes Thema aufbereitet: Was ist passiert, warum ist es relevant, welche YouTube-Hooks funktionieren.</p>
+
+  <div class="trends-grid reveal">
+
+    <div class="trend-card">
+      <div class="trend-status status-breaking">⚡ Breaking – Heute</div>
+      <div class="trend-title">Apple M5 – Local AI wird Mainstream</div>
+      <div class="trend-desc">MacBook Air M5, MacBook Pro M5 und iPhone 17e – alle heute released. KI-Aufgaben 4x schneller. Kein Internet, kein Abo, keine Cloud.</div>
+      <div class="trend-hooks">
+        <div class="hook-item">„KI läuft jetzt auf deinem Mac – ohne Internet, ohne Abo"</div>
+        <div class="hook-item">„Apple vs. Cloud-KI: Was ist 2026 wirklich besser?"</div>
+      </div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-status status-now">🟢 Jetzt</div>
+      <div class="trend-title">Gemini 3.1 Pro dominiert die Benchmarks</div>
+      <div class="trend-desc">Google schlägt OpenAI auf 13 von 16 Benchmarks. ARC-AGI-2: 77,1%. 1 Million Token Kontext für 2$/Mio Tokens.</div>
+      <div class="trend-hooks">
+        <div class="hook-item">„Google hat ChatGPT überholt – hier ist der Beweis"</div>
+        <div class="hook-item">„Warum ich von ChatGPT zu Gemini gewechselt habe"</div>
+      </div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-status status-now">🟢 Jetzt</div>
+      <div class="trend-title">KI-Agenten: Hype vs. Realität</div>
+      <div class="trend-desc">Nur 11% der Unternehmen nutzen Agenten produktiv. 40% aller Projekte werden bis 2027 abgebrochen. Die Wahrheit hinter dem Buzzword.</div>
+      <div class="trend-hooks">
+        <div class="hook-item">„Eine Woche KI-Agenten – das ist die ehrliche Wahrheit"</div>
+        <div class="hook-item">„Warum 40% aller Agenten-Projekte scheitern"</div>
+      </div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-status status-coming">🟡 Incoming</div>
+      <div class="trend-title">DeepSeek V4 – Chinas KI-Bombe</div>
+      <div class="trend-desc">1 Billion Parameter, multimodal, günstiger als alles aus dem Westen. MiniMax M2.5 soll Claude ebenbürtig sein.</div>
+      <div class="trend-hooks">
+        <div class="hook-item">„Chinas neue KI ist so gut wie Claude – fast kostenlos"</div>
+        <div class="hook-item">„Der KI-Krieg USA vs. China – wer gewinnt gerade?"</div>
+      </div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-status status-coming">🟡 Incoming</div>
+      <div class="trend-title">12 neue Modelle – Ein Monat</div>
+      <div class="trend-desc">Februar 2026: Gemini 3.1, Claude Opus 4.6, GPT-5.3, Grok 4.20 – der Takt hat sich dramatisch beschleunigt.</div>
+      <div class="trend-hooks">
+        <div class="hook-item">„12 KI-Modelle in einem Monat – ich habe alle getestet"</div>
+        <div class="hook-item">„Das beste KI-Modell März 2026 – wechselt alle 3 Wochen"</div>
+      </div>
+    </div>
+
+    <div class="trend-card">
+      <div class="trend-status status-early">🔴 Frühphase</div>
+      <div class="trend-title">World Models – Nach den LLMs</div>
+      <div class="trend-desc">Google, Meta, Runway – KI, die die physische Welt modelliert statt Tokens vorherzusagen. LeCun verlässt Meta dafür.</div>
+      <div class="trend-hooks">
+        <div class="hook-item">„Nach ChatGPT kommt das – World Models erklärt"</div>
+        <div class="hook-item">„Warum der KI-Godfather Meta verlassen hat"</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TOOLS -->
+<section class="tools-section" id="tools">
+  <div class="section-label">Tool Reviews</div>
+  <h2 class="section-title reveal">Ehrliche Einschätzungen.<br>Kein Marketing-Sprech.</h2>
+  <p class="section-sub reveal">Ich nutze diese Tools täglich. Hier ist, was wirklich funktioniert.</p>
+
+  <table class="tools-table reveal">
+    <thead>
+      <tr>
+        <th>Tool</th>
+        <th>Kategorie</th>
+        <th>Bewertung</th>
+        <th>Das Highlight</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><div class="tool-name">Gemini 3.1 Pro</div></td>
+        <td><div class="tool-cat">LLM / Multimodal</div></td>
+        <td><div class="stars">★★★★★</div></td>
+        <td>Dominiert Benchmarks, günstig</td>
+      </tr>
+      <tr>
+        <td><div class="tool-name">Claude Opus 4.6</div></td>
+        <td><div class="tool-cat">LLM / Reasoning</div></td>
+        <td><div class="stars">★★★★★</div></td>
+        <td>Bestes Reasoning, langer Kontext</td>
+      </tr>
+      <tr>
+        <td><div class="tool-name">Perplexity AI</div></td>
+        <td><div class="tool-cat">Recherche</div></td>
+        <td><div class="stars">★★★★★</div></td>
+        <td>Echtzeit-Suche + Quellenangaben</td>
+      </tr>
+      <tr>
+        <td><div class="tool-name">NotebookLM</div></td>
+        <td><div class="tool-cat">Wissensmanagement</div></td>
+        <td><div class="stars">★★★★★</div></td>
+        <td>Podcast-Feature ist Wahnsinn</td>
+      </tr>
+      <tr>
+        <td><div class="tool-name">ChatGPT Projects</div></td>
+        <td><div class="tool-cat">Produktivität</div></td>
+        <td><div class="stars">★★★★</div></td>
+        <td>Living Sources neu & stark</td>
+      </tr>
+      <tr>
+        <td><div class="tool-name">Nano Banana</div></td>
+        <td><div class="tool-cat">Automatisierung</div></td>
+        <td><div class="stars">★★★★</div></td>
+        <td>KI-Workflows ohne Code</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="divider"></div>
+
+<!-- VIDEO IDEAS -->
+<section id="youtube">
+  <div class="section-label">YouTube Research</div>
+  <h2 class="section-title reveal">10 Video-Ideen.<br>Alle bereit zum Drehen.</h2>
+  <p class="section-sub reveal">Von der News zur fertigen Content-Idee – so denke ich.</p>
+
+  <div class="video-grid reveal">
+    <div class="video-card">
+      <div class="video-num">001 / SOFORT</div>
+      <div class="video-fire">🔥🔥🔥🔥🔥</div>
+      <div class="video-title">Apple M5 – KI ohne Internet</div>
+      <div class="video-hook">„KI läuft jetzt auf deinem Mac – ohne Abo, ohne Cloud"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">002 / DIESE WOCHE</div>
+      <div class="video-fire">🔥🔥🔥🔥🔥</div>
+      <div class="video-title">Das beste KI-Tool 2026</div>
+      <div class="video-hook">„30 Tage, 6 Tools – mein ehrliches Fazit"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">003 / DIESE WOCHE</div>
+      <div class="video-fire">🔥🔥🔥🔥🔥</div>
+      <div class="video-title">KI-Agenten Selbstversuch</div>
+      <div class="video-hook">„Eine Woche KI für mich – die ehrliche Wahrheit"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">004 / EVERGREEN</div>
+      <div class="video-fire">🔥🔥🔥🔥🔥</div>
+      <div class="video-title">Der eine Prompt-Hack</div>
+      <div class="video-hook">„Dieser Satz macht ChatGPT 10x nützlicher"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">005 / EVERGREEN</div>
+      <div class="video-fire">🔥🔥🔥🔥🔥</div>
+      <div class="video-title">NotebookLM – Das unterschätzteste Tool</div>
+      <div class="video-hook">„Kostenloses Google-Tool macht dein Buch zum Podcast"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">006 / DIESE WOCHE</div>
+      <div class="video-fire">🔥🔥🔥🔥</div>
+      <div class="video-title">Google überholt OpenAI</div>
+      <div class="video-hook">„Gemini schlägt ChatGPT – hier ist der Beweis"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">007 / INCOMING</div>
+      <div class="video-fire">🔥🔥🔥🔥</div>
+      <div class="video-title">Chinas KI-Bombe</div>
+      <div class="video-hook">„So gut wie Claude, fast kostenlos – DeepSeek V4"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">008 / EVERGREEN</div>
+      <div class="video-fire">🔥🔥🔥🔥🔥</div>
+      <div class="video-title">KI für 0€ – 2026 Update</div>
+      <div class="video-hook">„Diese KI-Tools sind kostenlos und trotzdem stark"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">009 / FRÜHPHASE</div>
+      <div class="video-fire">🔥🔥🔥🔥</div>
+      <div class="video-title">World Models – Nach ChatGPT</div>
+      <div class="video-hook">„Das kommt nach den Sprachmodellen – und es wird alles ändern"</div>
+    </div>
+    <div class="video-card">
+      <div class="video-num">010 / EVERGREEN</div>
+      <div class="video-fire">🔥🔥🔥🔥</div>
+      <div class="video-title">Mein kompletter KI-Workflow</div>
+      <div class="video-hook">„So nutze ich KI, um YouTube-Videos 5x schneller vorzubereiten"</div>
+    </div>
+  </div>
+</section>
+
+<!-- PHILOSOPHY -->
+<section style="background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <div class="philosophy reveal">
+    <div class="section-label" style="justify-content: center;">Philosophie</div>
+    <div class="big-quote">
+      „Kompliziert erklären<br>kann <em>jeder.</em><br>Einfach erklären<br>ist die Kunst."
+    </div>
+    <p style="font-family: var(--font-mono); color: var(--muted); font-size: 0.9rem; line-height: 1.8;">
+      Gute KI-Inhalte entstehen nicht durch Copy-Paste von Pressemitteilungen.<br>
+      Sie entstehen durch echtes Testen – und die Fähigkeit, das so zu erklären,<br>
+      dass jemand mit null Vorwissen sagt: <span style="color: var(--accent);">„Aha. Jetzt check ich das."</span>
+    </p>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+  <div class="section-label" style="justify-content: center;">Bewerbung</div>
+  <div class="big reveal">
+    Lass uns<br><span>gemeinsam</span><br>abreißen.
+  </div>
+  <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;" class="reveal">
+    <a href="https://github.com/JessiAI/ai-content-radar" target="_blank" class="btn btn-primary">GitHub Repo</a>
+    <a href="mailto:maas@oneframemedia.de" class="btn btn-secondary">maas@oneframemedia.de</a>
+  </div>
+  <div class="contact-info reveal">
+    Erstellt: 4. März 2026 &nbsp;·&nbsp; wird täglich aktualisiert<br>
+    <a href="https://github.com/JessiAI/ai-content-radar">github.com/JessiAI/ai-content-radar</a>
+  </div>
+</section>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+  function animCursor() {
+    cursor.style.left = mx - 6 + 'px';
+    cursor.style.top  = my - 6 + 'px';
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) *.12;
+    ring.style.left = rx - 18 + 'px';
+    ring.style.top  = ry - 18 + 'px';
+    requestAnimationFrame(animCursor);
+  }
+  animCursor();
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+  }, { threshold: 0.12 });
+  reveals.forEach(r => obs.observe(r));
+</script>
+</body>
+</html>
