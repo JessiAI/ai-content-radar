@@ -1,6 +1,6 @@
 🤖 AI Content Radar
 
-Kuratierter Überblick über das KI-Ökosystem – aufbereitet für Content, der Millionen erreicht.
+Überblick über das KI-Ökosystem – aufbereitet für Content, der Millionen erreicht.
 
 KI entzaubert: Vom Code zur klaren Kante. 
 ---
@@ -164,7 +164,3 @@ Genau das ist mein Antrieb.
 
 Wer dieses Repo im Rahmen einer Bewerbung gefunden hat: Hi! 👋  
 Ich freue mich auf das Gespräch.
-
----
-
-*Zuletzt aktualisiert: 4. März 2026 – wird täglich erweitert.*
